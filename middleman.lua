@@ -3,7 +3,7 @@ memory.usememorydomain("EWRAM")
 print(memory.getcurrentmemorydomain())
 
 --Load functions
-dofile('playerCoords.lua')
+dofile('Lua/playerCoords.lua')
 mmap = require('myshm')
 shm = mmap.create_shm()
 while true do
