@@ -110,8 +110,18 @@ static int handler_gc(lua_State *L) {
 
 static int shm_write(lua_State *L) {
     handler *h = luaL_checkudata(L, 1, "shm_handler");
-    const char *msg = luaL_checkstring(L, 2);
+    //const char *msg = luaL_checkstring(L, 2);
     sem_wait(h->py);
+    // Convert values to string by using tostring
+
+    lua_getglobal(L, "tostring");
+    lua_pushvalue(L,2);
+    lua_call(L,1,1);
+
+    size_t len;
+    const char *msg = lua_tolstring(L,-1,&len);
+    if(len >= SIZE) len = SIZE -1 ;
+    
     strncpy(h->ptr->buffer, msg, SIZE - 1);
     h->ptr->buffer[SIZE - 1] = '\0';
     h->ptr->size = strlen(msg);
