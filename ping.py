@@ -17,8 +17,8 @@ while True :
 
     print(state, size, buffer.decode())
 
-    '''message = b"hello lua"
+    message = b"hello lua"
     mm[8:8+len(message)] = message
     mm[8+len(message)] = 0
-    mm[4:8] = struct.pack("I", len(message)) '''
+    mm[4:8] = struct.pack("I", len(message)) 
     lua.release()

@@ -2,6 +2,7 @@
 import posix_ipc
 import mmap
 import struct
+from Policy import Policy
 
 class Emulator:
 
@@ -14,6 +15,9 @@ class Emulator:
         self.shm.close_fd()
 
     def _policy(self):
+
+        nn = Policy()
+        
 
         return 0
     
@@ -31,6 +35,7 @@ class Emulator:
 
         actions = {0 : 'Up',1 : "Left", 2 : "Down",3 : "Right",4 : "A",5 : "B",6 : "Select",7 : "Start"}
         currX,currY = self.read()
+        
 
 
 
