@@ -10,7 +10,7 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
-#define SIZE 256 * 1024
+#define SIZE 288 * 1024
 #define name "/RAM_MAP"
 
 typedef struct {

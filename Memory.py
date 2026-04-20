@@ -7,6 +7,9 @@ class Memory :
     def __init__(self,shm):
         self.ewram = shm[8:]
 
+    def read_flag(self,offset):
+        return struct.unpack_from('?', self.ewram, offset)[0]
+
     def read_u8(self,offset):
         return self.ewram[offset]
     
