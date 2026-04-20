@@ -1,3 +1,4 @@
+from 
 mmap = require('myshm')
 shm = mmap.create_shm()
 

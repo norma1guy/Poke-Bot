@@ -2,7 +2,7 @@ import posix_ipc
 import mmap
 import struct
 from Memory import Memory
-from Map import map
+from Map import Map
 
 
 
@@ -19,7 +19,7 @@ class Environment :
         self.is_battle = False
         self.max_battlers = 4
         self.double_battle = False
-        self.map = map
+        self.map = Map().build_graph()
         self.input = {'A' : 0,'B' : 1,'Up' : 2,'Down' : 3, 'Left' : 4,'Right' : 5,'Select' : 6,'Start' : 7}
 
 
