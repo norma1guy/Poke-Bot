@@ -13,9 +13,13 @@ class Environment :
         self.shm = posix_ipc.SharedMemory("/RAM_MAP")
         self.luaFlag = posix_ipc.Semaphore("/py_to_lua")
         self.pyFlag  = posix_ipc.Semaphore("/lua_to_py")
-        self.mm = mmap.mmap(self.shm.fd,262144)
+        self.ewramSize = 256 * 1024
+        self.iwramSize = 32 * 1024
+        self.mm = mmap.mmap(self.shm.fd,8 + self.ewramSize + self.iwramSize)
         self.shm.close_fd()
-        self.ewram = Memory(self.mm)
+        self.input = struct.unpack("I",self.mm[:4])
+        self.ewram = Memory(self.mm[8:self.ewramSize])
+        self.iwram = Memory(self.mm[self.ewramSize : self.ewramSize + self.iwramSize])
         self.is_battle = False
         self.max_battlers = 4
         self.double_battle = False
@@ -43,9 +47,7 @@ class Environment :
     def take_action(self,action):
 
         self.luaFlag.acquire()
-        self.mm = self.mm[:8] + [len(action),action] + self.mm[10:]
-        self.pyFlag.release()
-        self.pyFlag.acquire()
+        self.input = action
         nextState = self.reset()
         return nextState
     

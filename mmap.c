@@ -10,13 +10,16 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
-#define SIZE 288 * 1024
+#define SIZE 256 * 1024
+#define SIZE2 32 * 1024
 #define name "/RAM_MAP"
 
 typedef struct {
-    uint32_t state;
+    uint32_t input;
     uint32_t size;
     char buffer[SIZE];
+    char other_buffer[SIZE2];
+
 } shm;
 
 typedef struct {
@@ -113,12 +116,15 @@ static int shm_write(lua_State *L) {
     //const char *msg = luaL_checkstring(L, 2);
     sem_wait(h->py);
 
-    size_t len;
+    size_t len,len2;
     const char *msg = luaL_checklstring(L,2,&len);
+    const char *msg2 = luaL_checklstring(L,3,&len2);
     if(len >= SIZE) len = SIZE;
-    
+    if(len2 >= SIZE2) len2 = SIZE2;
+    char *dest;
     memcpy(h->ptr->buffer, msg, len);
-    h->ptr->size = len;
+    memcpy(h->ptr->other_buffer, msg2, len2);
+    h->ptr->size = len + len2;
     sem_post(h->lua);
 
     return 0;
@@ -126,9 +132,9 @@ static int shm_write(lua_State *L) {
 
 static int shm_read(lua_State *L) {
     handler *h = luaL_checkudata(L, 1, "shm_handler");
-    //sem_wait(h->py);
-    lua_pushlstring(L, h->ptr->buffer,h->ptr->size);
-    //sem_post(h->lua);
+    sem_wait(h->py);
+    lua_pushnumber(L, h->ptr->input);
+    sem_post(h->py);
     return 1;
 }
 

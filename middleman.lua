@@ -6,12 +6,18 @@ print(memory.getcurrentmemorydomain())
 package.cpath = package.cpath .. ";/home/pmv/Desktop/RL/Bizhawk-2.11-linux-x64/Lua/RL/?.so"
 mmap = require('myshm')
 shm = mmap.create_shm()
-while true do
+input_map = {'Up','Down','Left','Right','A','B','Start','Select'}
 
-    local ram_map = memory.readbyterange(0x2000000,256 * 1024)
-    local ram_data = string.char(table,unpack(ram_map))
-    shm:write(ram_data)
-    gui.text(10, 10, "X: " .. coords.x)
-    gui.text(10, 25, "Y: " .. coords.y)
+while true do
+    inputs = {['Up'] = false,['Down'] = false,['Left'] = false,['Right'] = false,['A'] = false,['B'] = false,['Select'] = false,['Start'] = false}
+    memory.usememorydomain("EWRAM")
+    local ewram_map = memory.readbyterange_raw(0x0,256 * 1024)
+    memory.usememorydomain("IWRAM")
+    local iwram_map = memory.readbyterange_raw(0x0, 32 * 1024)
+    shm:write(ewram_map,iwram_map)
+    gui.text(10, 10, "State shared")
+    local input = shm:read()
+    inputs[input_map[input]] = true
+    joypad.set(inputs)
     emu.frameadvance()
 end
