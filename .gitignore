@@ -3,3 +3,4 @@ myshm.so
 /tester.lua
 /ping.py
 /Emulator.py
+/__pycache__

@@ -51,7 +51,7 @@ static int create_shm(lua_State *L){
 
 
     sem_t *lua_to_py = sem_open("/lua_to_py", O_CREAT, 0666,0);
-    sem_t *py_to_lua = sem_open("/py_to_lua", O_CREAT, 0666,1);
+    sem_t *py_to_lua = sem_open("/py_to_lua", O_CREAT, 0666,0);
     if(lua_to_py == SEM_FAILED ){
         munmap(ptr, sizeof(shm));
         return luaL_error(L, "sem_open lua_to_py failed");
@@ -114,7 +114,7 @@ static int handler_gc(lua_State *L) {
 static int shm_write(lua_State *L) {
     handler *h = luaL_checkudata(L, 1, "shm_handler");
     //const char *msg = luaL_checkstring(L, 2);
-    sem_wait(h->py);
+    //sem_wait(h->py);
 
     size_t len,len2;
     const char *msg = luaL_checklstring(L,2,&len);
