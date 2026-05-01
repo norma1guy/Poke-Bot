@@ -41,7 +41,6 @@ class Environment(EnvBase) :
         self.max_battlers = 4
         self.double_battle = False
         self.map = Map().build_graph()
-        self.prevState = None
         self.input = {'A' : 0,'B' : 1,'Up' : 2,'Down' : 3, 'Left' : 4,'Right' : 5,'Select' : 6,'Start' : 7}
         
 
@@ -53,7 +52,7 @@ class Environment(EnvBase) :
         party = self.get_party()
         hms = self.get_hms()
         player_battle_state,enemy_battle_state = self.get_battle_info()
-     
+        #print(enemy_battle_state)
         out = TensorDict(
             {
                 'inbattle' : torch.tensor(self.is_battle,dtype=torch.int64,device=self.device),
@@ -68,6 +67,7 @@ class Environment(EnvBase) :
         )
         
         return out.to(device=self.device)
+    
     def _make_spec(self):
 
         self.observation_spec = CompositeSpec(
@@ -83,15 +83,13 @@ class Environment(EnvBase) :
                 statChanges = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
                 status1 = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
                 status2 = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                lvl = BoundedTensorSpec(
-                    low = 1,
-                    high = 100,
+                lvl = DiscreteTensorSpec(
+                    n=101,
                     shape=(2,),
-                    dtype= torch.int64,
+                    dtype=torch.int64,
                 ),
                 exp = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                maxHP = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                hp = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                hp = UnboundedContinuousTensorSpec(shape=(2,),dtype=torch.float32),
                 ability = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
                 moves = UnboundedDiscreteTensorSpec(shape=(2,4),dtype=torch.int64),
                 holdItem = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
@@ -99,76 +97,68 @@ class Environment(EnvBase) :
 
             ),
             enemypokemon = CompositeSpec(
-                hp = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                lvl = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                maxHP = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                hp = UnboundedContinuousTensorSpec(shape=(2,),dtype=torch.float32),
+                lvl = DiscreteTensorSpec(
+                    n=101,
+                    shape=(2,),
+                    dtype=torch.int64,
+                ),
                 status1 = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
                 status2 = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64)
             ),
             map = UnboundedDiscreteTensorSpec(shape=(55,),dtype=torch.int64),
-            badge = BoundedTensorSpec(
-                low = 0,
-                high = 1,
-                shape = (8,),
-                dtype = torch.int64,
+            badge = DiscreteTensorSpec(
+                n=2,
+                shape=(8,),
+                dtype=torch.int64,
             ),
             party = CompositeSpec(
                 status = UnboundedDiscreteTensorSpec(shape=(6,),dtype=torch.int64),
-                level = BoundedTensorSpec(
-                    low=1,
-                    high=100,
+                level = DiscreteTensorSpec(
+                    n=101,
                     shape=(6,),
-                    dtype=torch.int64
-                    ),
-                hp = UnboundedDiscreteTensorSpec(shape=(6,),dtype=torch.int64),
-                maxhp = UnboundedDiscreteTensorSpec(shape=(6,),dtype=torch.int64),
-                attack = UnboundedDiscreteTensorSpec(shape=(6,),dtype=torch.int64),
-                defense = UnboundedDiscreteTensorSpec(shape=(6,),dtype=torch.int64),
-                speed = UnboundedDiscreteTensorSpec(shape=(6,),dtype=torch.int64),
-                spatt = UnboundedDiscreteTensorSpec(shape=(6,),dtype=torch.int64),
-                spdef = UnboundedDiscreteTensorSpec(shape=(6,),dtype=torch.int64),
+                    dtype=torch.int64,
+                ),
+                hp = UnboundedContinuousTensorSpec(shape=(6,),dtype=torch.float32),
             ),
-            hms = BoundedTensorSpec(
-                low = 0,
-                high = 1,
-                shape = (8,),
-                dtype = torch.int64,
+            hms = DiscreteTensorSpec(
+                n=2,
+                shape=(8,),
+                dtype=torch.int64,
             ),
         )
 
-        self.state_spec = self.observation_spec.clone()
-
-        self.action_spec = BoundedTensorSpec(
-            low = 0,
-            high = 7,
-            dtype = torch.int64,
-            shape = (1,)
+        self.action_spec = DiscreteTensorSpec(
+            n=8,
+            shape=(1,),
+            dtype=torch.int64,
         )
 
         self.reward_spec = UnboundedContinuousTensorSpec()
+
 
     def _set_seed(self, seed: Optional[int]):
         rng = torch.manual_seed(seed)
         self.rng = rng
 
-    def calc_reward(self,nextState) :
+    def calc_reward(self,prevState,nextState) :
         reward = 0
         # Badge reward
-        if self.prevState is None :
+        if prevState is None :
             pass
-        elif nextState['badge'].sum() > self.prevState['badge'].sum() :
+        elif nextState['badge'].sum() > prevState['badge'].sum() :
             reward += 10 
         
         # Movement reward
-        if self.prevState is None :
+        if prevState is None :
             reward += 0.1
-        elif not torch.equal(nextState['map'],self.prevState['map']) :
+        elif not torch.equal(nextState['map'],prevState['map']) :
             reward += 0.1
 
         # HMs reward
-        if self.prevState is None :
+        if prevState is None :
             pass
-        elif nextState['hms'].sum() > self.prevState['hms'].sum() :
+        elif nextState['hms'].sum() > prevState['hms'].sum() :
             reward += 10
         
         
@@ -176,27 +166,47 @@ class Environment(EnvBase) :
     
     def _step(self,tensordict) :
         action = tensordict.get('action')
+        prev_obs = TensorDict({
+            'inbattle' : tensordict.get('inbattle'),
+            'playerpokemon' : tensordict.get('playerpokemon'),
+            'enemypokemon' : tensordict.get('enemypokemon'),
+            'map' : tensordict.get('map'),
+            'badge' : tensordict.get('badge'),
+            'party' :tensordict.get('party'),
+            'hms' : tensordict.get('hms'),
+            },
+            batch_size=[],
+            device=self.device)
         self.luaFlag.acquire()
         self.mm[:4] = struct.pack("I", action.item())
-        nextState = self._get_state()
-        reward = self.calc_reward(nextState)
-        self.prevState = nextState.clone()
+        next_obs = self._get_state()
+        reward = self.calc_reward(prev_obs,next_obs)
         self.pyFlag.release()
         out = TensorDict(
             {
-                'next' : nextState,
+                'inbattle' : next_obs['inbattle'],
+                'playerpokemon' : next_obs['playerpokemon'],
+                'enemypokemon' : next_obs['enemypokemon'],
+                'map' : next_obs['map'],
+                'badge' : next_obs['badge'],
+                'party' :next_obs['party'],
+                'hms' : next_obs['hms'],
                 'reward' : reward,
-                'done' : torch.tensor(False, dtype=torch.bool,device=self.device)
+                'done' : (next_obs['party']['hp'] <= 0).all()
             },
             batch_size=[]
         )
         return out.to(device=self.device)
     
-    def _reset(self, tensordict=None):
-        self.prevState = None
+    def _reset(self, tensordict):
+        self.luaFlag.acquire()
+        if tensordict is None :
+            tensordict = TensorDict({
+            },batch_size=[])
+        out = tensordict.clone()
         self.mm[:4] = struct.pack('I', 8)
         self.pyFlag.release()
-
+        #out['observation'] = self._get_state()
         return self._get_state()
             
 
@@ -232,14 +242,7 @@ class Environment(EnvBase) :
         party = { 
                     'status' : [],
                     'level' : [],
-                    'hp' : [],
-                    'maxhp' : [],
-                    'attack' : [],
-                    'defense' : [],
-                    'speed' : [],
-                    'spatt' : [],
-                    'spdef' : []
-                    
+                    'hp' : [],                  
                 }
         partyAddr = 0x244ec
         structSize = 104 # size of each Pokemon struct
@@ -251,34 +254,17 @@ class Environment(EnvBase) :
                 level = self.ewram.read_u8(pokemon + 0x54)
                 hp = self.ewram.read_u16_le(pokemon + 0x56)
                 maxhp = self.ewram.read_u16_le(pokemon + 0x58)
-                attack = self.ewram.read_u16_le(pokemon + 0x5a)
-                defense = self.ewram.read_u16_le(pokemon + 0x5c)
-                speed = self.ewram.read_u16_le(pokemon + 0x5e)
-                spatt = self.ewram.read_u16_le(pokemon + 0x60)
-                spdef = self.ewram.read_u16_le(pokemon + 0x62)
                 party['status'].append(status)
                 party['level'].append(level)
-                party['hp'].append(hp)
-                party['attack'].append(attack)
-                party['defense'].append(defense)
-                party['spatt'].append(spatt)
-                party['spdef'].append(spdef)
-                party['speed'].append(speed)
-                party['maxhp'].append(maxhp)
+                party['hp'].append(hp/maxhp)
             else :
-                for j in ['status','level','hp','attack','defense','spatt','spdef','speed','maxhp'] :
+                for j in ['status','level','hp'] :
                     party[j].append(0)
 
-
+        #print(party)
         out = TensorDict({
             'status': torch.tensor(party['status'],dtype=torch.int64,device=self.device),
-            'attack': torch.tensor(party['attack'],dtype=torch.int64,device=self.device),
-            'defense': torch.tensor(party['defense'],dtype=torch.int64,device=self.device),
-            'speed': torch.tensor(party['speed'],dtype=torch.int64,device=self.device),
-            'hp': torch.tensor(party['hp'],dtype=torch.int64,device=self.device),
-            'maxhp': torch.tensor(party['maxhp'],dtype=torch.int64,device=self.device),
-            'spdef': torch.tensor(party['spdef'],dtype=torch.int64,device=self.device),
-            'spatt': torch.tensor(party['spatt'],dtype=torch.int64,device=self.device),
+            'hp': torch.tensor(party['hp'],dtype=torch.float32,device=self.device),
             'level': torch.tensor(party['level'],dtype=torch.int64,device=self.device),
             },
             batch_size=[]
@@ -321,7 +307,6 @@ class Environment(EnvBase) :
                      'exp' : [],
                      'statChanges' : [],
                      'hp' : [],
-                     'maxHP' : [],
                      'ability' : [],
                      'moves' : [],
                      'holdItem' : []
@@ -330,7 +315,6 @@ class Environment(EnvBase) :
                     'status2' : [],
                     'lvl' : [],
                     'hp' : [],
-                    'maxHP' : []
                     }
                 
         finishBattle = 0
@@ -369,16 +353,14 @@ class Environment(EnvBase) :
                     playerMon['status2'].append(status2)
                     playerMon['lvl'].append(lvl)
                     playerMon['exp'].append(exp)
-                    playerMon['maxHP'].append(maxHP)
-                    playerMon['hp'].append(hp)
+                    playerMon['hp'].append(hp/maxHP)
                     playerMon['ability'].append(ability)
                     playerMon['moves'].append(moves)
                     playerMon['holdItem'].append(holdItem)
                     playerMon['species'].append(species)
                 else :
-                    enemyMon['hp'].append(hp)
+                    enemyMon['hp'].append(hp/maxHP)
                     enemyMon['lvl'].append(lvl)
-                    enemyMon['maxHP'].append(maxHP)
                     enemyMon['status1'].append(status1)
                     enemyMon['status2'].append(status2)
             else :
@@ -395,21 +377,19 @@ class Environment(EnvBase) :
                     playerMon['status2'].append(status2)
                     playerMon['lvl'].append(lvl)
                     playerMon['exp'].append(exp)
-                    playerMon['maxHP'].append(maxHP)
-                    playerMon['hp'].append(hp)
+                    playerMon['hp'].append(hp/maxHP)
                     playerMon['ability'].append(ability)
                     playerMon['moves'].append(moves)
                     playerMon['holdItem'].append(holdItem)
                     playerMon['species'].append(species)
                 else :
-                    enemyMon['hp'].append(hp)
+                    enemyMon['hp'].append(hp/maxHP)
                     enemyMon['lvl'].append(lvl)
-                    enemyMon['maxHP'].append(maxHP)
                     enemyMon['status1'].append(status1)
                     enemyMon['status2'].append(status2)
         
         self.double_battle = False
-
+        
         for i in range(2 - len(playerMon['att'])) :
             playerMon['att'].append(0)
             playerMon['defn'].append(0)
@@ -423,7 +403,6 @@ class Environment(EnvBase) :
             playerMon['status2'].append(0)
             playerMon['lvl'].append(0)
             playerMon['exp'].append(0)
-            playerMon['maxHP'].append(0)
             playerMon['hp'].append(0)
             playerMon['ability'].append(0)
             playerMon['moves'].append([0,0,0,0])
@@ -433,10 +412,10 @@ class Environment(EnvBase) :
         for i in range(2 - len(enemyMon['lvl'])) :
             enemyMon['hp'].append(0)
             enemyMon['lvl'].append(0)
-            enemyMon['maxHP'].append(0)
             enemyMon['status1'].append(0)
             enemyMon['status2'].append(0)
 
+        #print(len(playerMon['att']),len(enemyMon['hp']))
         pM = TensorDict({
             'att' : torch.tensor(playerMon['att'],dtype=torch.int64,device=self.device),
             'defn' : torch.tensor(playerMon['defn'],dtype=torch.int64,device=self.device),
@@ -450,8 +429,7 @@ class Environment(EnvBase) :
             'status2' : torch.tensor(playerMon['status2'],dtype=torch.int64,device=self.device),
             'lvl' : torch.tensor(playerMon['lvl'],dtype=torch.int64,device=self.device),
             'exp' : torch.tensor(playerMon['exp'],dtype=torch.int64,device=self.device),
-            'maxHP' : torch.tensor(playerMon['maxHP'],dtype=torch.int64,device=self.device),
-            'hp' : torch.tensor(playerMon['hp'],dtype=torch.int64,device=self.device),
+            'hp' : torch.tensor(playerMon['hp'],dtype=torch.float32,device=self.device),
             'ability' : torch.tensor(playerMon['ability'],dtype=torch.int64,device=self.device),
             'moves' : torch.tensor(playerMon['moves'],dtype=torch.int64,device=self.device),
             'holdItem' : torch.tensor(playerMon['holdItem'],dtype=torch.int64,device=self.device),
@@ -461,8 +439,7 @@ class Environment(EnvBase) :
         ).to(device=self.device)
 
         eM = TensorDict({
-            'hp' : torch.tensor(enemyMon['hp'],dtype=torch.int64,device=self.device),
-            'maxHP' : torch.tensor(enemyMon['maxHP'],dtype=torch.int64,device=self.device),
+            'hp' : torch.tensor(enemyMon['hp'],dtype=torch.float32,device=self.device),
             'lvl' : torch.tensor(enemyMon['lvl'],dtype=torch.int64,device=self.device),
             'status1' : torch.tensor(enemyMon['status1'],dtype=torch.int64,device=self.device),
             'status2' : torch.tensor(enemyMon['status2'],dtype=torch.int64,device=self.device)
