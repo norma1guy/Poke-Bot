@@ -1,46 +1,41 @@
 import torch
-
+from Encoders import StateEncoder
 
 class Actor(torch.nn.Module):
 
-    def __init__(self, state_dim, action_dim):
+    def __init__(self):
         super().__init__()
 
+        self.encoder = StateEncoder()
+
         self.actor_net = torch.nn.Sequential(
-            torch.nn.Linear(state_dim, 128),
+            torch.nn.Linear(256, 128),
             torch.nn.Tanh(),
             torch.nn.Linear(128, 128),
             torch.nn.Tanh(),
-            torch.nn.Linear(128,action_dim)
+            torch.nn.Linear(128,8)
         )
 
-    def forward(self, state):
-        logits = self.actor_net(state)
+    def forward(self, td):
+        x = self.encoder(td)
+        logits = self.actor_net(x)
         return logits
-        
-
-    def get_action(self, state):
-        logits,value = self.forward(state)
-        probs = torch.softmax(logits, dim=-1)
-        dist = torch.distributions.Categorical(probs)
-
-        action = dist.sample()
-        return action.item() + 1, dist.log_prob(action),value
-
 
 class Critic(torch.nn.Module):
 
-    def __init__(self, state_dim):
+    def __init__(self):
         super().__init__()
+        self.encoder = StateEncoder()
 
         self.critic_net = torch.nn.Sequential(
-            torch.nn.Linear(state_dim, 128),
+            torch.nn.Linear(256, 128),
             torch.nn.Tanh(),
             torch.nn.Linear(128, 128),
             torch.nn.Tanh(),
             torch.nn.Linear(128,1)
         )
 
-    def forward(self, state):
-        state_value = self.critic_net(state)
+    def forward(self, td):
+        x = self.encoder(td)
+        state_value = self.critic_net(x)
         return state_value

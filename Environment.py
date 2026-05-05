@@ -55,7 +55,7 @@ class Environment(EnvBase) :
         #print(enemy_battle_state)
         out = TensorDict(
             {
-                'inbattle' : torch.tensor(self.is_battle,dtype=torch.int64,device=self.device),
+                'inbattle' : torch.tensor([self.is_battle],dtype=torch.int64,device=self.device),
                 'playerpokemon' : player_battle_state,
                 'enemypokemon' : enemy_battle_state,
                 'map' : mapState,
@@ -71,7 +71,7 @@ class Environment(EnvBase) :
     def _make_spec(self):
 
         self.observation_spec = CompositeSpec(
-            inbattle = DiscreteTensorSpec(2,dtype=torch.int64),
+            inbattle = DiscreteTensorSpec(2, shape=(1,), dtype=torch.int64),
             playerpokemon = CompositeSpec(
                 att = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
                 defn = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
@@ -82,7 +82,6 @@ class Environment(EnvBase) :
                 pp = UnboundedDiscreteTensorSpec(shape=(2,4),dtype=torch.int64),
                 statChanges = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
                 status1 = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                status2 = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
                 lvl = DiscreteTensorSpec(
                     n=101,
                     shape=(2,),
@@ -104,7 +103,6 @@ class Environment(EnvBase) :
                     dtype=torch.int64,
                 ),
                 status1 = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                status2 = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64)
             ),
             map = UnboundedDiscreteTensorSpec(shape=(55,),dtype=torch.int64),
             badge = DiscreteTensorSpec(
@@ -302,7 +300,6 @@ class Environment(EnvBase) :
                      'types' : [],
                      'pp' : [],
                      'status1' : [],
-                     'status2' : [],
                      'lvl' : [],
                      'exp' : [],
                      'statChanges' : [],
@@ -329,7 +326,6 @@ class Environment(EnvBase) :
             pp = [self.ewram.read_u8(mon + 0x24 + i) for i in range(4)]
             statChanges = self.ewram.read_s8(mon + 0x18)
             status1 = self.ewram.read_u32_le(mon + 0x4C)
-            status2 = self.ewram.read_u32_le(mon + 0x50)
             lvl = self.ewram.read_u8(mon + 0x2A)
             exp = self.ewram.read_u32_le(mon + 0x44)
             maxHP = self.ewram.read_u16_le(mon + 0x2C)
@@ -350,7 +346,6 @@ class Environment(EnvBase) :
                     playerMon['pp'].append(pp)
                     playerMon['statChanges'].append(statChanges)
                     playerMon['status1'].append(status1)
-                    playerMon['status2'].append(status2)
                     playerMon['lvl'].append(lvl)
                     playerMon['exp'].append(exp)
                     playerMon['hp'].append(hp/maxHP)
@@ -362,7 +357,6 @@ class Environment(EnvBase) :
                     enemyMon['hp'].append(hp/maxHP)
                     enemyMon['lvl'].append(lvl)
                     enemyMon['status1'].append(status1)
-                    enemyMon['status2'].append(status2)
             else :
                 if i < 1 :
                     playerMon['att'].append(attack)
@@ -374,7 +368,6 @@ class Environment(EnvBase) :
                     playerMon['pp'].append(pp)
                     playerMon['statChanges'].append(statChanges)
                     playerMon['status1'].append(status1)
-                    playerMon['status2'].append(status2)
                     playerMon['lvl'].append(lvl)
                     playerMon['exp'].append(exp)
                     playerMon['hp'].append(hp/maxHP)
@@ -386,7 +379,6 @@ class Environment(EnvBase) :
                     enemyMon['hp'].append(hp/maxHP)
                     enemyMon['lvl'].append(lvl)
                     enemyMon['status1'].append(status1)
-                    enemyMon['status2'].append(status2)
         
         self.double_battle = False
         
@@ -400,7 +392,6 @@ class Environment(EnvBase) :
             playerMon['pp'].append([0,0,0,0])
             playerMon['statChanges'].append(0)
             playerMon['status1'].append(0)
-            playerMon['status2'].append(0)
             playerMon['lvl'].append(0)
             playerMon['exp'].append(0)
             playerMon['hp'].append(0)
@@ -413,7 +404,6 @@ class Environment(EnvBase) :
             enemyMon['hp'].append(0)
             enemyMon['lvl'].append(0)
             enemyMon['status1'].append(0)
-            enemyMon['status2'].append(0)
 
         #print(len(playerMon['att']),len(enemyMon['hp']))
         pM = TensorDict({
@@ -426,7 +416,6 @@ class Environment(EnvBase) :
             'pp' : torch.tensor(playerMon['pp'],dtype=torch.int64,device=self.device),
             'statChanges' : torch.tensor(playerMon['statChanges'],dtype=torch.int64,device=self.device),
             'status1' : torch.tensor(playerMon['status1'],dtype=torch.int64,device=self.device),
-            'status2' : torch.tensor(playerMon['status2'],dtype=torch.int64,device=self.device),
             'lvl' : torch.tensor(playerMon['lvl'],dtype=torch.int64,device=self.device),
             'exp' : torch.tensor(playerMon['exp'],dtype=torch.int64,device=self.device),
             'hp' : torch.tensor(playerMon['hp'],dtype=torch.float32,device=self.device),
@@ -442,7 +431,6 @@ class Environment(EnvBase) :
             'hp' : torch.tensor(enemyMon['hp'],dtype=torch.float32,device=self.device),
             'lvl' : torch.tensor(enemyMon['lvl'],dtype=torch.int64,device=self.device),
             'status1' : torch.tensor(enemyMon['status1'],dtype=torch.int64,device=self.device),
-            'status2' : torch.tensor(enemyMon['status2'],dtype=torch.int64,device=self.device)
             },
             batch_size=[]
         ).to(device=self.device)

@@ -20,10 +20,8 @@ from torchrl.objectives.value import GAE
 from tqdm import tqdm
 
 class Trainer :
-    def __init__(self,state_dim,action_dim,save_dir):
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.save_dir = save_dir
+    def __init__(self):
+  
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         #Hyper Params
         self.num_cells = 256
@@ -41,14 +39,14 @@ class Trainer :
         self.base_env = Environment()
         self.tranformed_env = TransformedEnv(
             self.base_env, 
-            Compose(ObservationNorm(in_keys=["observation"]),
+            Compose(ObservationNorm(in_keys=[]),
                     DoubleToFloat(),
                     StepCounter(),
                     )
             )
         
-        self.policy_module = TensorDictModule(Actor(state_dim,action_dim),
-                                              in_keys=['observation'],
+        self.policy_module = TensorDictModule(Actor(),
+                                              in_keys=[],
                                               out_keys=['logits']
                                             )
     
@@ -57,8 +55,8 @@ class Trainer :
                                                 out_keys=['action'],
                                                 distribution_class = torch.distributions.Categorical
                                             )
-        self.value_module = ValueOperator(Critic(state_dim),
-                                          in_keys=['observation'],
+        self.value_module = ValueOperator(Critic(),
+                                          in_keys=[],
                                           out_keys=['state_value'])
         
         self.collector = SyncDataCollector(self.tranformed_env,
