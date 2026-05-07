@@ -27,8 +27,8 @@ class Trainer :
         self.num_cells = 256
         self.lr = 3e-4
         self.max_grad_norm = 1.0
-        self.frames_per_batch = 1000
-        self.total_frames = 1000000
+        self.frames_per_batch = 100
+        self.total_frames = 1000
         # PPO Params
         self.sub_batch_size = 64
         self.epochs = 10
@@ -37,29 +37,29 @@ class Trainer :
         self.lmda = 0.95
         self.entropy = 1e-4
         self.base_env = Environment()
-        self.tranformed_env = TransformedEnv(
-            self.base_env, 
-            Compose(ObservationNorm(in_keys=[]),
-                    DoubleToFloat(),
-                    StepCounter(),
-                    )
+        self.transformed_env = TransformedEnv(
+            Environment(),
+            Compose(
+                StepCounter(),
             )
+        )
         
-        self.policy_module = TensorDictModule(Actor(),
-                                              in_keys=[],
+        self.policy_module = TensorDictModule(Actor().to(self.device),
+                                              in_keys=['observation'],
                                               out_keys=['logits']
                                             )
     
         self.action_module = ProbabilisticActor(self.policy_module,
                                                 in_keys=['logits'],
                                                 out_keys=['action'],
-                                                distribution_class = torch.distributions.Categorical
+                                                distribution_class = torch.distributions.Categorical,
+                                                return_log_prob = True
                                             )
-        self.value_module = ValueOperator(Critic(),
-                                          in_keys=[],
+        self.value_module = ValueOperator(Critic().to(self.device),
+                                          in_keys=['observation'],
                                           out_keys=['state_value'])
         
-        self.collector = SyncDataCollector(self.tranformed_env,
+        self.collector = SyncDataCollector(self.transformed_env,
                                            self.action_module,
                                            frames_per_batch=self.frames_per_batch,
                                            total_frames=self.total_frames,
@@ -95,7 +95,7 @@ class Trainer :
             for _ in range(self.epochs):
                 self.adv_module(tensordict_data)
                 data_view = tensordict_data.reshape(-1)
-                self.replay.extend(data_view.cpu())
+                self.replay.extend(data_view.to(self.device))
                 for _ in range(self.frames_per_batch // self.sub_batch_size):
                     subdata = self.replay.sample(self.sub_batch_size)
                     loss_vals = self.loss_module(subdata.to(self.device))
@@ -119,18 +119,18 @@ class Trainer :
             lr_str = f"lr policy : {logs['lr'][-1]: 4.4f}"
             if i % 10 == 0 :
                 with set_exploration_type(ExplorationType.DETERMINISTIC),torch.no_grad():
-                    eval_rollout = self.tranformed_env.rollout(1000,self.policy_module)
+                    eval_rollout = self.transformed_env.rollout(1000,self.action_module)
                     logs['eval reward'].append(eval_rollout['next','reward'].mean().item())
                     logs["eval reward (sum)"].append(
                 eval_rollout["next", "reward"].sum().item()
             )
-            logs["eval step_count"].append(eval_rollout["step_count"].max().item())
-            eval_str = (
-                f"eval cumulative reward: {logs['eval reward (sum)'][-1]: 4.4f} "
-                f"(init: {logs['eval reward (sum)'][0]: 4.4f}), "
-                f"eval step-count: {logs['eval step_count'][-1]}"
-            )
-            del eval_rollout
+                logs["eval step_count"].append(eval_rollout["step_count"].max().item())
+                eval_str = (
+                    f"eval cumulative reward: {logs['eval reward (sum)'][-1]: 4.4f} "
+                    f"(init: {logs['eval reward (sum)'][0]: 4.4f}), "
+                    f"eval step-count: {logs['eval step_count'][-1]}"
+                )
+                del eval_rollout
         pbar.set_description(", ".join([eval_str, cum_reward_str, stepcount_str, lr_str]))
         self.scheduler.step()
 

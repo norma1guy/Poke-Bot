@@ -30,7 +30,8 @@ class PlayerPokemonEncoder(nn.Module):
         ability = self.ability_emb(playerpokemon['ability'])
         status = self.status_emb(playerpokemon['status1'])
         item = self.hold_item_emb(playerpokemon['holdItem'])
-        moves = moves.reshape(moves.size(0), -1)
+        moves = moves.flatten(start_dim=-2)
+        
         num_stats = torch.cat([
             playerpokemon['hp'].unsqueeze(-1),
             playerpokemon['lvl'].unsqueeze(-1)/100.0,
@@ -98,14 +99,14 @@ class StateEncoder(nn.Module):
     def forward(self,state) :
 
         player = self.player_encoder(state['playerpokemon'])
-        player = player.mean(dim=0)
+        player = player.mean(dim=-2)
 
         enemy = self.enemy_encoder(state['enemypokemon'])
-        enemy = enemy.mean(dim=0)
+        enemy = enemy.mean(dim=-2)
 
-        partyhp = state['party']['hp'].mean().unsqueeze(0)
-        partylvl = (state['party']['hp'].float()/100.0).mean().unsqueeze(0)
-        party = torch.cat([partyhp,partylvl], dim=0)
+        partyhp = state['party']['hp'].mean(dim=-1, keepdim=True)
+        partylvl = (state['party']['level'].float()/100.0).mean(dim=-1, keepdim=True)
+        party = torch.cat([partyhp,partylvl], dim=-1)
         party = self.party_encoder(party)
 
         map = state['map']

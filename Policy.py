@@ -5,8 +5,9 @@ class Actor(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.encoder = StateEncoder()
+        self.encoder = StateEncoder().to(device=device)
 
         self.actor_net = torch.nn.Sequential(
             torch.nn.Linear(256, 128),
@@ -25,7 +26,9 @@ class Critic(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.encoder = StateEncoder()
+        
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.encoder = StateEncoder().to(device=device)
 
         self.critic_net = torch.nn.Sequential(
             torch.nn.Linear(256, 128),

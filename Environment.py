@@ -3,19 +3,10 @@ import mmap
 import struct
 from Memory import Memory
 from Map import Map
-from tensordict import TensorDict, TensorDictBase
-from tensordict.nn import TensorDictModule
-from torchrl.data import DiscreteTensorSpec,BoundedTensorSpec, CompositeSpec, UnboundedDiscreteTensorSpec,UnboundedContinuousTensorSpec
-from torchrl.envs import (
-    CatTensors,
-    EnvBase,
-    Transform,
-    TransformedEnv,
-    UnsqueezeTransform,
-)
+from tensordict import TensorDict
+from torchrl.data import DiscreteTensorSpec, CompositeSpec, UnboundedDiscreteTensorSpec,UnboundedContinuousTensorSpec
+from torchrl.envs import EnvBase
 from typing import Optional
-from torchrl.envs.transforms.transforms import _apply_to_composite
-from torchrl.envs.utils import check_env_specs, step_mdp
 import torch
 
 class Environment(EnvBase) :
@@ -71,59 +62,62 @@ class Environment(EnvBase) :
     def _make_spec(self):
 
         self.observation_spec = CompositeSpec(
-            inbattle = DiscreteTensorSpec(2, shape=(1,), dtype=torch.int64),
-            playerpokemon = CompositeSpec(
-                att = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                defn = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                spe = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                spA = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                spD = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                types = UnboundedDiscreteTensorSpec(shape=(2,2),dtype=torch.int64),
-                pp = UnboundedDiscreteTensorSpec(shape=(2,4),dtype=torch.int64),
-                statChanges = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                status1 = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                lvl = DiscreteTensorSpec(
-                    n=101,
-                    shape=(2,),
-                    dtype=torch.int64,
-                ),
-                exp = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                hp = UnboundedContinuousTensorSpec(shape=(2,),dtype=torch.float32),
-                ability = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                moves = UnboundedDiscreteTensorSpec(shape=(2,4),dtype=torch.int64),
-                holdItem = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-                species = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
 
-            ),
-            enemypokemon = CompositeSpec(
-                hp = UnboundedContinuousTensorSpec(shape=(2,),dtype=torch.float32),
-                lvl = DiscreteTensorSpec(
-                    n=101,
-                    shape=(2,),
+            observation = CompositeSpec(
+                inbattle = DiscreteTensorSpec(2, shape=(1,), dtype=torch.int64),
+                playerpokemon = CompositeSpec(
+                    att = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                    defn = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                    spe = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                    spA = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                    spD = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                    types = UnboundedDiscreteTensorSpec(shape=(2,2),dtype=torch.int64),
+                    pp = UnboundedDiscreteTensorSpec(shape=(2,4),dtype=torch.int64),
+                    statChanges = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                    status1 = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                    lvl = DiscreteTensorSpec(
+                        n=101,
+                        shape=(2,),
+                        dtype=torch.int64,
+                    ),
+                    exp = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                    hp = UnboundedContinuousTensorSpec(shape=(2,),dtype=torch.float32),
+                    ability = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                    moves = UnboundedDiscreteTensorSpec(shape=(2,4),dtype=torch.int64),
+                    holdItem = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                    species = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+
+                ),
+                enemypokemon = CompositeSpec(
+                    hp = UnboundedContinuousTensorSpec(shape=(2,),dtype=torch.float32),
+                    lvl = DiscreteTensorSpec(
+                        n=101,
+                        shape=(2,),
+                        dtype=torch.int64,
+                    ),
+                    status1 = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
+                ),
+                map = UnboundedDiscreteTensorSpec(shape=(55,),dtype=torch.int64),
+                badge = DiscreteTensorSpec(
+                    n=2,
+                    shape=(8,),
                     dtype=torch.int64,
                 ),
-                status1 = UnboundedDiscreteTensorSpec(shape=(2,),dtype=torch.int64),
-            ),
-            map = UnboundedDiscreteTensorSpec(shape=(55,),dtype=torch.int64),
-            badge = DiscreteTensorSpec(
-                n=2,
-                shape=(8,),
-                dtype=torch.int64,
-            ),
-            party = CompositeSpec(
-                status = UnboundedDiscreteTensorSpec(shape=(6,),dtype=torch.int64),
-                level = DiscreteTensorSpec(
-                    n=101,
-                    shape=(6,),
+                party = CompositeSpec(
+                    status = UnboundedDiscreteTensorSpec(shape=(6,),dtype=torch.int64),
+                    level = DiscreteTensorSpec(
+                        n=101,
+                        shape=(6,),
+                        dtype=torch.int64,
+                    ),
+                    hp = UnboundedContinuousTensorSpec(shape=(6,),dtype=torch.float32),
+                ),
+                hms = DiscreteTensorSpec(
+                    n=2,
+                    shape=(8,),
                     dtype=torch.int64,
                 ),
-                hp = UnboundedContinuousTensorSpec(shape=(6,),dtype=torch.float32),
-            ),
-            hms = DiscreteTensorSpec(
-                n=2,
-                shape=(8,),
-                dtype=torch.int64,
-            ),
+            )
         )
 
         self.action_spec = DiscreteTensorSpec(
@@ -163,15 +157,22 @@ class Environment(EnvBase) :
         return torch.tensor(reward, dtype=torch.float32,device=self.device)
     
     def _step(self,tensordict) :
+
+        # Check for text box being active
+        '''active,state = self._get_textbox_flags()
+        if active != 0 :
+            print(active,state)
+            tensordict.set('action',torch.tensor(4,dtype= torch.int64,device=self.device))'''
+
         action = tensordict.get('action')
         prev_obs = TensorDict({
-            'inbattle' : tensordict.get('inbattle'),
-            'playerpokemon' : tensordict.get('playerpokemon'),
-            'enemypokemon' : tensordict.get('enemypokemon'),
-            'map' : tensordict.get('map'),
-            'badge' : tensordict.get('badge'),
-            'party' :tensordict.get('party'),
-            'hms' : tensordict.get('hms'),
+            'inbattle' : tensordict['observation'].get('inbattle'),
+            'playerpokemon' : tensordict['observation'].get('playerpokemon'),
+            'enemypokemon' : tensordict['observation'].get('enemypokemon'),
+            'map' : tensordict['observation'].get('map'),
+            'badge' : tensordict['observation'].get('badge'),
+            'party' :tensordict['observation'].get('party'),
+            'hms' : tensordict['observation'].get('hms'),
             },
             batch_size=[],
             device=self.device)
@@ -182,13 +183,7 @@ class Environment(EnvBase) :
         self.pyFlag.release()
         out = TensorDict(
             {
-                'inbattle' : next_obs['inbattle'],
-                'playerpokemon' : next_obs['playerpokemon'],
-                'enemypokemon' : next_obs['enemypokemon'],
-                'map' : next_obs['map'],
-                'badge' : next_obs['badge'],
-                'party' :next_obs['party'],
-                'hms' : next_obs['hms'],
+                'observation' : next_obs,
                 'reward' : reward,
                 'done' : (next_obs['party']['hp'] <= 0).all()
             },
@@ -204,9 +199,16 @@ class Environment(EnvBase) :
         out = tensordict.clone()
         self.mm[:4] = struct.pack('I', 8)
         self.pyFlag.release()
-        #out['observation'] = self._get_state()
-        return self._get_state()
+        out['observation'] = self._get_state()
+        return out
             
+    def _get_textbox_flags(self) :
+
+        active = self.ewram.read_u8(0x0201cb)
+        state = self.ewram.read_u8(0x0201cc)
+
+        return (active,state)
+
 
     
     def get_hms(self) :
