@@ -18,10 +18,17 @@ from torchrl.modules import ProbabilisticActor, ValueOperator
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value import GAE
 from tqdm import tqdm
+import os 
 
 class Trainer :
     def __init__(self):
-  
+        
+        self.checkpoint_path = 'checkpoint/checkpoint.pt'
+        if os.path.exists(self.checkpoint_path):
+            print("Checkpoint found. Loading model...")
+            self.load_checkpoint(self.checkpoint_path)
+        else:
+            print("No checkpoint found. Starting fresh.")
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         #Hyper Params
         self.num_cells = 256
@@ -86,6 +93,28 @@ class Trainer :
         self.optim = torch.optim.Adam(self.loss_module.parameters(),self.lr)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optim,self.total_frames // self.frames_per_batch,0.0)
 
+
+    def save_checkpoint(self, path="checkpoint.pt"):
+        checkpoint = {
+            "actor": self.action_module.state_dict(),
+            "critic": self.value_module.state_dict(),
+            "optimizer": self.optim.state_dict(),
+            "scheduler": self.scheduler.state_dict(),
+        }
+        torch.save(checkpoint, path)
+        print(f"[Checkpoint] Saved to {path}")
+
+
+    def load_checkpoint(self, path="checkpoint.pt"):
+        checkpoint = torch.load(path, map_location=self.device)
+
+        self.action_module.load_state_dict(checkpoint["actor"])
+        self.value_module.load_state_dict(checkpoint["critic"])
+        self.optim.load_state_dict(checkpoint["optimizer"])
+        self.scheduler.load_state_dict(checkpoint["scheduler"])
+
+        print(f"[Checkpoint] Loaded from {path}")
+
     def train(self):
         logs = defaultdict(list)
         pbar = tqdm(self.total_frames)
@@ -95,6 +124,7 @@ class Trainer :
             for _ in range(self.epochs):
                 self.adv_module(tensordict_data)
                 data_view = tensordict_data.reshape(-1)
+                self.replay.empty()
                 self.replay.extend(data_view.to(self.device))
                 for _ in range(self.frames_per_batch // self.sub_batch_size):
                     subdata = self.replay.sample(self.sub_batch_size)
@@ -118,12 +148,13 @@ class Trainer :
             logs['lr'].append(self.optim.param_groups[0]['lr'])
             lr_str = f"lr policy : {logs['lr'][-1]: 4.4f}"
             if i % 10 == 0 :
+                self.save_checkpoint(self.checkpoint_path)
                 with set_exploration_type(ExplorationType.DETERMINISTIC),torch.no_grad():
                     eval_rollout = self.transformed_env.rollout(1000,self.action_module)
                     logs['eval reward'].append(eval_rollout['next','reward'].mean().item())
                     logs["eval reward (sum)"].append(
-                eval_rollout["next", "reward"].sum().item()
-            )
+                        eval_rollout["next", "reward"].sum().item()
+                    )
                 logs["eval step_count"].append(eval_rollout["step_count"].max().item())
                 eval_str = (
                     f"eval cumulative reward: {logs['eval reward (sum)'][-1]: 4.4f} "
@@ -131,8 +162,8 @@ class Trainer :
                     f"eval step-count: {logs['eval step_count'][-1]}"
                 )
                 del eval_rollout
-        pbar.set_description(", ".join([eval_str, cum_reward_str, stepcount_str, lr_str]))
-        self.scheduler.step()
+            pbar.set_description(", ".join([eval_str, cum_reward_str, stepcount_str, lr_str]))
+            self.scheduler.step()
 
 
         

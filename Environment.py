@@ -26,8 +26,8 @@ class Environment(EnvBase) :
         self.mm = mmap.mmap(self.shm.fd,8 + self.ewramSize + self.iwramSize)
         self.shm.close_fd()
         self.input = struct.unpack("I",self.mm[:4])
-        self.ewram = Memory(self.mm[8:8 + self.ewramSize])
-        self.iwram = Memory(self.mm[8 + self.ewramSize : 8 + self.ewramSize + self.iwramSize])
+        self.ewram = Memory(self.mm,8)
+        self.iwram = Memory(self.mm,8 + self.ewramSize)
         self.is_battle = False
         self.max_battlers = 4
         self.double_battle = False
@@ -159,23 +159,13 @@ class Environment(EnvBase) :
     def _step(self,tensordict) :
 
         # Check for text box being active
-        '''active,state = self._get_textbox_flags()
-        if active != 0 :
+        active,state = self._get_textbox_flags()
+        '''if active != 0 :
             print(active,state)
             tensordict.set('action',torch.tensor(4,dtype= torch.int64,device=self.device))'''
 
         action = tensordict.get('action')
-        prev_obs = TensorDict({
-            'inbattle' : tensordict['observation'].get('inbattle'),
-            'playerpokemon' : tensordict['observation'].get('playerpokemon'),
-            'enemypokemon' : tensordict['observation'].get('enemypokemon'),
-            'map' : tensordict['observation'].get('map'),
-            'badge' : tensordict['observation'].get('badge'),
-            'party' :tensordict['observation'].get('party'),
-            'hms' : tensordict['observation'].get('hms'),
-            },
-            batch_size=[],
-            device=self.device)
+        prev_obs = tensordict['observation'].clone()
         self.luaFlag.acquire()
         self.mm[:4] = struct.pack("I", action.item())
         next_obs = self._get_state()
@@ -223,16 +213,21 @@ class Environment(EnvBase) :
 
    
     def get_coords(self):
+        saveBlockAddr = self.iwram.read_u32_le(0x5d8c) - 0x2000000
+        x = self.ewram.read_s16_le(saveBlockAddr)
+        y = self.ewram.read_s16_le(saveBlockAddr + 0x2)
 
-        playerAvatar = 0x37590
+        '''playerAvatar = 0x37590
         objectEvents = 0x37350
         objectSize = 0x24
         playerEvent = self.ewram.read_u8(playerAvatar + 5)
         playerObject = objectEvents + playerEvent * objectSize
         xCoord = self.ewram.read_s16_le(playerObject + 0x10)
-        yCoord = self.ewram.read_s16_le(playerObject + 0x12)
+        yCoord = self.ewram.read_s16_le(playerObject + 0x12)'''
+
+        
         insideBuilding = 0
-        pos = [xCoord,yCoord,insideBuilding]
+        pos = [x,y,insideBuilding]
         pos.extend(self.map)
         return torch.tensor(pos,dtype=torch.int64,device=self.device)
     

@@ -6,3 +6,4 @@ myshm.so
 /__pycache__
 /check.py
 /data
+/checkpoint
